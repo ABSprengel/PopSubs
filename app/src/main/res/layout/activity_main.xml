@@ -1,85 +1,202 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:padding="16dp"
     tools:context=".MainActivity">
 
-    <com.google.android.material.button.MaterialButton
-        android:id="@+id/buttonSelectFile"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Select VTT / SRT File" />
-
-    <TextView
-        android:id="@+id/textViewFilePath"
+    <!-- ===== Normal (windowed) UI ===== -->
+    <ScrollView
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:text="No file selected"
-        android:textAppearance="?attr/textAppearanceCaption" /> <TextView
-    android:id="@+id/textViewCurrentTime"
-    android:layout_width="wrap_content"
-    android:layout_height="wrap_content"
-    android:layout_gravity="center_horizontal"
-    android:layout_marginTop="20dp"
-    android:fontFamily="monospace"
-    android:text="00:00.000"
-    android:textAppearance="?attr/textAppearanceHeadline6" /> <TextView
-    android:id="@+id/textViewSubtitle"
-    android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:layout_marginTop="10dp"
-    android:layout_marginBottom="10dp"
-    android:gravity="center"
-    android:minLines="3"
-    android:text="[Subtitles will appear here]"
-    android:textAppearance="?attr/textAppearanceBody1" />
-    <com.google.android.material.slider.Slider
-        android:id="@+id/sliderPlayback"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="5dp"
-        android:layout_marginBottom="15dp"
-        android:valueFrom="0.0"
-        android:valueTo="100.0" android:stepSize="0.0"   android:value="0.0"
-        android:enabled="false" />
+        android:layout_height="match_parent"
+        android:fillViewport="true">
 
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:gravity="center"
-        android:orientation="horizontal">
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/buttonPlayPause"
-            style="@style/Widget.MaterialComponents.Button.Icon"
-            android:layout_width="wrap_content"
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:enabled="false"
-            android:text="Play"
-            app:icon="@drawable/ic_play_arrow" /> <com.google.android.material.button.MaterialButton
-        android:id="@+id/buttonReset"
-        style="@style/Widget.MaterialComponents.Button.OutlinedButton.Icon"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="16dp"
-        android:enabled="false"
-        android:text="Reset"
-        app:icon="@drawable/ic_replay" /> </LinearLayout>
+            android:orientation="vertical"
+            android:padding="16dp">
 
-    <com.google.android.material.button.MaterialButton
-        android:id="@+id/buttonLaunchOverlay"
-        style="@style/Widget.MaterialComponents.Button.TextButton"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="center_horizontal"
-        android:layout_marginTop="30dp"
-        android:enabled="false"
-        android:text="Toggle Overlay Visibility"
-        android:visibility="visible" />
+            <!-- Top row: Select file (fills) + Settings + Fullscreen -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
 
-</LinearLayout>
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/buttonSelectFile"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/select_file" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/buttonSettings"
+                    style="@style/Widget.MaterialComponents.Button.OutlinedButton.Icon"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:contentDescription="@string/settings"
+                    android:insetLeft="0dp"
+                    android:insetRight="0dp"
+                    android:minWidth="0dp"
+                    app:icon="@drawable/ic_settings"
+                    app:iconPadding="0dp" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/buttonFullscreen"
+                    style="@style/Widget.MaterialComponents.Button.OutlinedButton.Icon"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:contentDescription="@string/fullscreen"
+                    android:insetLeft="0dp"
+                    android:insetRight="0dp"
+                    android:minWidth="0dp"
+                    app:icon="@drawable/ic_fullscreen"
+                    app:iconPadding="0dp" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/textViewFilePath"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="@string/no_file_selected"
+                android:textAppearance="?attr/textAppearanceCaption" />
+
+            <TextView
+                android:id="@+id/textViewCurrentTime"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_horizontal"
+                android:layout_marginTop="20dp"
+                android:fontFamily="monospace"
+                android:text="00:00.000"
+                android:textAppearance="?attr/textAppearanceHeadline6" />
+
+            <TextView
+                android:id="@+id/textViewSubtitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:layout_marginBottom="10dp"
+                android:gravity="center"
+                android:minLines="3"
+                android:padding="8dp"
+                android:text="[Subtitles will appear here]"
+                android:textAppearance="?attr/textAppearanceBody1" />
+
+            <com.google.android.material.slider.Slider
+                android:id="@+id/sliderPlayback"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="5dp"
+                android:layout_marginBottom="15dp"
+                android:enabled="false"
+                android:stepSize="0.0"
+                android:value="0.0"
+                android:valueFrom="0.0"
+                android:valueTo="100.0" />
+
+            <!-- Controls row: Play/Pause, Reset, Overlay toggle -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:orientation="horizontal">
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/buttonPlayPause"
+                    style="@style/Widget.MaterialComponents.Button.Icon"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:enabled="false"
+                    android:text="@string/play"
+                    app:icon="@drawable/ic_play_arrow" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/buttonReset"
+                    style="@style/Widget.MaterialComponents.Button.OutlinedButton.Icon"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="12dp"
+                    android:enabled="false"
+                    android:text="@string/reset"
+                    app:icon="@drawable/ic_replay" />
+            </LinearLayout>
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/buttonLaunchOverlay"
+                style="@style/Widget.MaterialComponents.Button.TextButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_horizontal"
+                android:layout_marginTop="16dp"
+                android:enabled="false"
+                android:text="@string/toggle_overlay" />
+
+        </LinearLayout>
+    </ScrollView>
+
+    <!-- ===== Fullscreen presentation overlay ===== -->
+    <FrameLayout
+        android:id="@+id/fullscreenContainer"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@android:color/black"
+        android:clickable="true"
+        android:focusable="true"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/textViewFullscreenSubtitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:layout_marginStart="24dp"
+            android:layout_marginEnd="24dp"
+            android:gravity="center"
+            android:shadowColor="#000000"
+            android:shadowDx="2"
+            android:shadowDy="2"
+            android:shadowRadius="4"
+            android:text=""
+            android:textColor="#FFFFFF"
+            android:textSize="28sp" />
+
+        <!-- Control bar, toggled by tapping the container -->
+        <LinearLayout
+            android:id="@+id/fullscreenControls"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom"
+            android:background="@color/fullscreen_controls_bg"
+            android:gravity="center"
+            android:orientation="horizontal"
+            android:padding="8dp"
+            android:visibility="gone">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/buttonFsPlayPause"
+                style="@style/Widget.MaterialComponents.Button.Icon"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/play"
+                app:icon="@drawable/ic_play_arrow" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/buttonFsExit"
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton.Icon"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:contentDescription="@string/exit_fullscreen"
+                android:text="@string/exit_fullscreen"
+                app:icon="@drawable/ic_fullscreen_exit" />
+        </LinearLayout>
+    </FrameLayout>
+
+</FrameLayout>

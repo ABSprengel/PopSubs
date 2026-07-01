@@ -10,12 +10,17 @@ import android.graphics.PixelFormat
 import android.os.Build
 import android.os.IBinder
 import android.util.Log
+import android.util.TypedValue
 import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
 import android.view.WindowManager
+import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.localbroadcastmanager.content.LocalBroadcastManager // Use LocalBroadcastManager
+import com.example.simplevttplayer.AppSettings.captionTextSizeSp
+import com.example.simplevttplayer.AppSettings.captionTextColor
+import com.example.simplevttplayer.AppSettings.captionBoxColor
 
 class OverlayService : Service() {
 
@@ -23,23 +28,35 @@ class OverlayService : Service() {
         // These constants MUST match the ones used in MainActivity
         const val ACTION_UPDATE_SUBTITLE = "com.example.simplevttplayer.UPDATE_SUBTITLE"
         const val EXTRA_SUBTITLE_TEXT = "subtitle_text"
+        // Live caption styling broadcast
+        const val ACTION_UPDATE_STYLE = "com.example.simplevttplayer.UPDATE_STYLE"
+        const val EXTRA_TEXT_SIZE = "text_size"
+        const val EXTRA_TEXT_COLOR = "text_color"
+        const val EXTRA_BOX_COLOR = "box_color"
         val TAG: String = OverlayService::class.java.simpleName
     }
 
     private lateinit var windowManager: WindowManager
     private lateinit var overlayView: View
+    private lateinit var overlayRoot: LinearLayout
     private lateinit var textViewOverlaySubtitle: TextView
     private lateinit var params: WindowManager.LayoutParams
 
-    // Listens for broadcasts from MainActivity containing subtitle text
+    // Listens for broadcasts from MainActivity containing subtitle text / style
     private val subtitleUpdateReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
-            if (intent?.action == ACTION_UPDATE_SUBTITLE) {
-                // Extract text, default to empty string if null
-                val subtitleText = intent.getStringExtra(EXTRA_SUBTITLE_TEXT) ?: ""
-                Log.d(TAG, "Received subtitle broadcast: '$subtitleText'")
-                // Call the function to update the UI based on the text
-                updateSubtitleText(subtitleText)
+            when (intent?.action) {
+                ACTION_UPDATE_SUBTITLE -> {
+                    val subtitleText = intent.getStringExtra(EXTRA_SUBTITLE_TEXT) ?: ""
+                    Log.d(TAG, "Received subtitle broadcast: '$subtitleText'")
+                    updateSubtitleText(subtitleText)
+                }
+                ACTION_UPDATE_STYLE -> {
+                    val size = intent.getFloatExtra(EXTRA_TEXT_SIZE, AppSettings.DEFAULT_TEXT_SIZE)
+                    val textColor = intent.getIntExtra(EXTRA_TEXT_COLOR, AppSettings.DEFAULT_TEXT_COLOR)
+                    val boxColor = intent.getIntExtra(EXTRA_BOX_COLOR, AppSettings.DEFAULT_BOX_COLOR)
+                    applyStyle(size, textColor, boxColor)
+                }
             }
         }
     }
@@ -56,7 +73,10 @@ class OverlayService : Service() {
         try {
             // Inflate the overlay layout
             overlayView = LayoutInflater.from(this).inflate(R.layout.overlay_layout, null)
+            overlayRoot = overlayView.findViewById(R.id.overlayRoot)
             textViewOverlaySubtitle = overlayView.findViewById(R.id.textViewOverlaySubtitle)
+            // Apply the saved caption style right away
+            applyStyle(captionTextSizeSp, captionTextColor, captionBoxColor)
 
             // Get WindowManager service
             windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
@@ -86,6 +106,7 @@ class OverlayService : Service() {
 
             // Register the broadcast receiver using LocalBroadcastManager
             val filter = IntentFilter(ACTION_UPDATE_SUBTITLE)
+            filter.addAction(ACTION_UPDATE_STYLE)
             LocalBroadcastManager.getInstance(this).registerReceiver(subtitleUpdateReceiver, filter)
             Log.d(TAG, "SubtitleUpdateReceiver registered.")
 
@@ -129,6 +150,17 @@ class OverlayService : Service() {
         } catch (e: IllegalArgumentException) {
             // Can happen if receiver wasn't registered successfully or already unregistered
             Log.w(TAG, "Receiver possibly already unregistered or not registered.", e)
+        }
+    }
+
+    // Apply caption text size / color and box background color to the overlay
+    private fun applyStyle(sizeSp: Float, textColor: Int, boxColor: Int) {
+        if (::textViewOverlaySubtitle.isInitialized) {
+            textViewOverlaySubtitle.setTextSize(TypedValue.COMPLEX_UNIT_SP, sizeSp)
+            textViewOverlaySubtitle.setTextColor(textColor)
+        }
+        if (::overlayRoot.isInitialized) {
+            overlayRoot.setBackgroundColor(boxColor)
         }
     }
 

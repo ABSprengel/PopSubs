@@ -3,6 +3,8 @@ package com.example.simplevttplayer // **<<< CHECK THIS LINE CAREFULLY!**
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Intent
+import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
@@ -10,23 +12,41 @@ import android.os.Handler
 import android.os.Looper
 import android.provider.OpenableColumns
 import android.util.Log
-// No longer using standard Button/SeekBar directly in code
+import android.util.TypedValue
+import android.view.LayoutInflater
+import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
+import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import java.io.BufferedReader
 import java.io.InputStream
 import android.os.Build
 import android.provider.Settings
 import androidx.activity.result.ActivityResultLauncher
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
+import com.google.android.material.bottomsheet.BottomSheetBehavior
+import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.slider.Slider // Import Slider
-import com.google.android.material.slider.Slider.OnChangeListener
 import com.google.android.material.slider.Slider.OnSliderTouchListener
+import com.google.android.material.switchmaterial.SwitchMaterial
 import android.view.View
 import android.view.WindowManager // *** Import for Keep Screen On ***
 import androidx.core.content.ContextCompat
 import com.google.android.material.button.MaterialButton
+
+// Settings accessors (extension properties on Context)
+import com.example.simplevttplayer.AppSettings.captionTextSizeSp
+import com.example.simplevttplayer.AppSettings.captionTextColor
+import com.example.simplevttplayer.AppSettings.captionBoxColor
+import com.example.simplevttplayer.AppSettings.playbackSpeed
+import com.example.simplevttplayer.AppSettings.keepScreenOn
+import com.example.simplevttplayer.AppSettings.preRollMs
+import com.example.simplevttplayer.AppSettings.postRollMs
+import com.example.simplevttplayer.AppSettings.fullscreenBgColor
 
 class MainActivity : AppCompatActivity() {
 
@@ -41,6 +61,8 @@ class MainActivity : AppCompatActivity() {
 
     // --- UI Elements ---
     private lateinit var buttonSelectFile: MaterialButton
+    private lateinit var buttonSettings: MaterialButton
+    private lateinit var buttonFullscreen: MaterialButton
     private lateinit var textViewFilePath: TextView
     private lateinit var textViewCurrentTime: TextView
     private lateinit var textViewSubtitle: TextView
@@ -48,6 +70,13 @@ class MainActivity : AppCompatActivity() {
     private lateinit var buttonReset: MaterialButton
     private lateinit var buttonLaunchOverlay: MaterialButton
     private lateinit var sliderPlayback: Slider
+
+    // Fullscreen UI
+    private lateinit var fullscreenContainer: View
+    private lateinit var textViewFullscreenSubtitle: TextView
+    private lateinit var fullscreenControls: View
+    private lateinit var buttonFsPlayPause: MaterialButton
+    private lateinit var buttonFsExit: MaterialButton
 
     // --- Subtitle Data ---
     data class SubtitleCue( val startTimeMs: Long, val endTimeMs: Long, val text: String )
@@ -62,6 +91,7 @@ class MainActivity : AppCompatActivity() {
     private var currentCueIndex: Int = -1
     private var wasPlayingBeforeSeek = false
     private var isOverlayUIShown = true
+    private var isFullscreen = false
 
     // --- File Selection Launcher ---
     private val selectSubtitleFileLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
@@ -105,6 +135,8 @@ class MainActivity : AppCompatActivity() {
 
         // Init UI Elements
         buttonSelectFile = findViewById(R.id.buttonSelectFile)
+        buttonSettings = findViewById(R.id.buttonSettings)
+        buttonFullscreen = findViewById(R.id.buttonFullscreen)
         textViewFilePath = findViewById(R.id.textViewFilePath)
         textViewCurrentTime = findViewById(R.id.textViewCurrentTime)
         textViewSubtitle = findViewById(R.id.textViewSubtitle)
@@ -113,21 +145,47 @@ class MainActivity : AppCompatActivity() {
         buttonLaunchOverlay = findViewById(R.id.buttonLaunchOverlay)
         sliderPlayback = findViewById(R.id.sliderPlayback) // Use Slider ID
 
+        fullscreenContainer = findViewById(R.id.fullscreenContainer)
+        textViewFullscreenSubtitle = findViewById(R.id.textViewFullscreenSubtitle)
+        fullscreenControls = findViewById(R.id.fullscreenControls)
+        buttonFsPlayPause = findViewById(R.id.buttonFsPlayPause)
+        buttonFsExit = findViewById(R.id.buttonFsExit)
+
         // Set Listeners
         buttonSelectFile.setOnClickListener { openFilePicker() }
+        buttonSettings.setOnClickListener { showSettingsSheet() }
+        buttonFullscreen.setOnClickListener { enterFullscreen() }
         buttonPlayPause.setOnClickListener { togglePlayPause() }
         buttonReset.setOnClickListener { resetPlayback() }
         buttonLaunchOverlay.setOnClickListener {
             isOverlayUIShown = !isOverlayUIShown
-            if (isOverlayUIShown) { Log.d(TAG,"Overlay ON"); Toast.makeText(this,"Overlay Shown",Toast.LENGTH_SHORT).show(); handleLaunchOverlayClick(); sendSubtitleUpdate(textViewSubtitle.text.toString())
+            if (isOverlayUIShown) { Log.d(TAG,"Overlay ON"); Toast.makeText(this,"Overlay Shown",Toast.LENGTH_SHORT).show(); handleLaunchOverlayClick(); sendStyleUpdate(); sendSubtitleUpdate(textViewSubtitle.text.toString())
             } else { Log.d(TAG,"Overlay OFF"); Toast.makeText(this,"Overlay Hidden",Toast.LENGTH_SHORT).show(); sendSubtitleUpdate("") }
         }
         setupSliderListener() // Setup listener for the Slider
+
+        // Fullscreen listeners
+        fullscreenContainer.setOnClickListener { toggleFullscreenControls() }
+        buttonFsPlayPause.setOnClickListener { togglePlayPause() }
+        buttonFsExit.setOnClickListener { exitFullscreen() }
+
+        // Back button: leave fullscreen first if active
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                if (isFullscreen) {
+                    exitFullscreen()
+                } else {
+                    isEnabled = false
+                    onBackPressedDispatcher.onBackPressed()
+                }
+            }
+        })
 
         // Initial state
         buttonLaunchOverlay.isEnabled = false
         sliderPlayback.isEnabled = false
         setPlayButtonState(false) // Ensure correct initial icon
+        applyCaptionStyle()       // Apply saved caption look
     }
 
     // *** ADDED Keep Screen On flag clearing ***
@@ -160,9 +218,9 @@ class MainActivity : AppCompatActivity() {
                 textViewCurrentTime.text = formatTime(pausedElapsedTimeMillis)
                 val currentCue = findCueForTime(pausedElapsedTimeMillis)
                 val currentText = currentCue?.text ?: ""
-                textViewSubtitle.text = currentText
+                setCaptionText(currentText)
                 sendSubtitleUpdate(currentText)
-                startTimeNanos = System.nanoTime() - (pausedElapsedTimeMillis * 1_000_000)
+                rebaseClock()
                 if (wasPlayingBeforeSeek) { startPlayback() }
                 else { setPlayButtonState(false) } // Ensure icon is Play if not resuming
             }
@@ -183,7 +241,7 @@ class MainActivity : AppCompatActivity() {
                     buttonPlayPause.isEnabled = true; buttonReset.isEnabled = true; buttonLaunchOverlay.isEnabled = true
                     val duration = subtitleCues.lastOrNull()?.endTimeMs ?: 0L
                     sliderPlayback.valueFrom = 0.0f; sliderPlayback.valueTo = duration.toFloat(); sliderPlayback.value = 0.0f; sliderPlayback.isEnabled = true
-                    textViewSubtitle.text = "[Ready to play]"; textViewCurrentTime.text = formatTime(0)
+                    setCaptionText("[Ready to play]"); textViewCurrentTime.text = formatTime(0)
                     isOverlayUIShown = true; setPlayButtonState(false); sendSubtitleUpdate("")
                 } else { Toast.makeText(this, "No cues parsed.", Toast.LENGTH_LONG).show(); resetPlaybackStateOnError() }
             } ?: run { Toast.makeText(this, "Failed file stream.", Toast.LENGTH_LONG).show(); Log.w(TAG, "Null InputStream: $uri"); resetPlaybackStateOnError() }
@@ -204,50 +262,73 @@ class MainActivity : AppCompatActivity() {
     private fun handleLaunchOverlayClick() { Log.d(TAG, "Ensuring overlay service started."); if (checkOverlayPermission()) startOverlayService() else requestOverlayPermission() }
     private fun checkOverlayPermission(): Boolean { val has = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) Settings.canDrawOverlays(this) else true; Log.d(TAG, "Overlay perm status: $has"); return has }
     private fun requestOverlayPermission() { if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) { Log.d(TAG, "Requesting overlay perm."); Toast.makeText(this, "Need 'Draw over apps' permission.", Toast.LENGTH_LONG).show(); val i = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")); try { overlayPermissionLauncher.launch(i) } catch (e: Exception) { Log.e(TAG, "Can't launch overlay settings", e); Toast.makeText(this, "Can't open perm settings.", Toast.LENGTH_SHORT).show() } } }
-    private fun startOverlayService() { if (!checkOverlayPermission()) { Log.w(TAG, "Start service denied (no perm)"); requestOverlayPermission(); return }; Log.d(TAG, "Starting OverlayService..."); val i = Intent(this, OverlayService::class.java); try { startService(i) } catch (e: Exception) { Log.e(TAG, "Can't start OverlayService", e); Toast.makeText(this, "Failed to start overlay.", Toast.LENGTH_SHORT).show() } }
+    private fun startOverlayService() { if (!checkOverlayPermission()) { Log.w(TAG, "Start service denied (no perm)"); requestOverlayPermission(); return }; Log.d(TAG, "Starting OverlayService..."); val i = Intent(this, OverlayService::class.java); try { startService(i); sendStyleUpdate() } catch (e: Exception) { Log.e(TAG, "Can't start OverlayService", e); Toast.makeText(this, "Failed to start overlay.", Toast.LENGTH_SHORT).show() } }
     private fun stopOverlayService() { Log.d(TAG, "Stopping OverlayService..."); val i = Intent(this, OverlayService::class.java); stopService(i) }
     private fun sendSubtitleUpdate(text: String) { val textToSend = if (isOverlayUIShown) text else ""; if (textToSend.isNotBlank()) { Log.d(TAG, "Broadcasting update: '$textToSend'") } else { Log.d(TAG, "Broadcasting empty subtitle update.") }; val i = Intent(ACTION_UPDATE_SUBTITLE_LOCAL).apply { putExtra(EXTRA_SUBTITLE_TEXT_LOCAL, textToSend) }; LocalBroadcastManager.getInstance(this).sendBroadcast(i) }
 
+    /** Broadcast the current caption style so the floating overlay restyles live. */
+    private fun sendStyleUpdate() {
+        val i = Intent(OverlayService.ACTION_UPDATE_STYLE).apply {
+            putExtra(OverlayService.EXTRA_TEXT_SIZE, captionTextSizeSp)
+            putExtra(OverlayService.EXTRA_TEXT_COLOR, captionTextColor)
+            putExtra(OverlayService.EXTRA_BOX_COLOR, captionBoxColor)
+        }
+        LocalBroadcastManager.getInstance(this).sendBroadcast(i)
+    }
 
     // --- Playback Control ---
     private fun togglePlayPause() { if (isPlaying) pausePlayback() else startPlayback() }
 
-    // *** ADDED Keep Screen On logic & Icon change ***
+    /** Recompute the clock origin from the current media position + speed. */
+    private fun rebaseClock() {
+        val speed = playbackSpeed
+        startTimeNanos = System.nanoTime() - ((pausedElapsedTimeMillis / speed) * 1_000_000.0).toLong()
+    }
+
+    /** Current media-time position in ms, taking playback speed into account. */
+    private fun currentMediaMs(): Long {
+        val speed = playbackSpeed
+        return ((System.nanoTime() - startTimeNanos) / 1_000_000.0 * speed).toLong()
+    }
+
+    /** Apply the keep-screen-on window flag based on the user setting + playback state. */
+    private fun applyKeepScreenFlag() {
+        if (isPlaying && keepScreenOn) {
+            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        } else {
+            window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+    }
+
     private fun startPlayback() {
         if (subtitleCues.isEmpty()) return
         isPlaying = true
         setPlayButtonState(true) // Set icon to Pause
-        // *** Keep screen on ***
-        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        Log.d(TAG, "Screen kept on.")
+        applyKeepScreenFlag()
 
-        startTimeNanos = System.nanoTime() - (pausedElapsedTimeMillis * 1_000_000)
+        rebaseClock()
         if (isOverlayUIShown) { val c = findCueForTime(pausedElapsedTimeMillis); sendSubtitleUpdate(c?.text ?: "") } else { sendSubtitleUpdate("") }
         handler.post(updateRunnable)
     }
 
-    // *** ADDED Keep Screen On logic & Icon change ***
     private fun pausePlayback() {
         if (!isPlaying) return
         isPlaying = false
         setPlayButtonState(false) // Set icon to Play
-        // *** Allow screen to turn off ***
         window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        Log.d(TAG, "Screen allowed to turn off.")
 
         // Update paused time only when actually pausing
-        pausedElapsedTimeMillis = (System.nanoTime() - startTimeNanos) / 1_000_000
+        pausedElapsedTimeMillis = currentMediaMs()
         handler.removeCallbacks(updateRunnable)
     }
 
-    // *** UPDATED for Slider & Keep Screen On flag ***
     private fun resetPlayback() {
         if (isPlaying) { handler.removeCallbacks(updateRunnable); isPlaying = false }
         pausedElapsedTimeMillis = 0L
         startTimeNanos = 0L
         currentCueIndex = -1
         isOverlayUIShown = true // Reset overlay visibility state
-        textViewSubtitle.text = "[Select VTT / SRT File]" // Updated default text
+        setCaptionText("[Select VTT / SRT File]") // Updated default text
         textViewCurrentTime.text = formatTime(0)
         setPlayButtonState(false) // Set icon to Play
         val cuesLoaded = subtitleCues.isNotEmpty()
@@ -258,44 +339,46 @@ class MainActivity : AppCompatActivity() {
         sliderPlayback.isEnabled = cuesLoaded
         sendSubtitleUpdate("") // Clear the overlay text
 
-        // ---> ADDED Clear flag on reset <---
         window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         Log.d(TAG, "Playback reset, screen allowed to turn off.")
     }
 
-    // *** UPDATED for Slider & Keep Screen On flag ***
     private fun resetPlaybackStateOnError() {
         subtitleCues = emptyList(); selectedFileUri = null
         buttonPlayPause.isEnabled = false; buttonReset.isEnabled = false; buttonLaunchOverlay.isEnabled = false
         sliderPlayback.value = 0.0f // Reset Slider value
         sliderPlayback.isEnabled = false
-        isOverlayUIShown = true; textViewSubtitle.text = "[Error loading file]"; textViewCurrentTime.text = formatTime(0)
+        isOverlayUIShown = true; setCaptionText("[Error loading file]"); textViewCurrentTime.text = formatTime(0)
         if (!textViewFilePath.text.startsWith("File:")) { textViewFilePath.text = "No file or error" }
         sendSubtitleUpdate("")
 
-        // ---> ADDED Clear flag on error <---
         window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         Log.d(TAG, "Error state reset, screen allowed to turn off.")
     }
 
-    // Helper function to change Play/Pause button icon and text
+    // Helper function to change Play/Pause button icon and text (both windowed + fullscreen)
     private fun setPlayButtonState(playing: Boolean) {
-        if (playing) {
-            buttonPlayPause.text = "Pause" // Keep text for accessibility readers
-            // Ensure you have ic_pause in res/drawable
-            buttonPlayPause.icon = ContextCompat.getDrawable(this, R.drawable.ic_pause)
-        } else {
-            buttonPlayPause.text = "Play"
-            // Ensure you have ic_play_arrow in res/drawable
-            buttonPlayPause.icon = ContextCompat.getDrawable(this, R.drawable.ic_play_arrow)
+        val label = if (playing) "Pause" else "Play"
+        val icon = ContextCompat.getDrawable(this, if (playing) R.drawable.ic_pause else R.drawable.ic_play_arrow)
+        buttonPlayPause.text = label
+        buttonPlayPause.icon = icon
+        if (::buttonFsPlayPause.isInitialized) {
+            buttonFsPlayPause.text = label
+            buttonFsPlayPause.icon = ContextCompat.getDrawable(this, if (playing) R.drawable.ic_pause else R.drawable.ic_play_arrow)
         }
+    }
+
+    /** Update the caption text in both the windowed view and the fullscreen view. */
+    private fun setCaptionText(text: String) {
+        textViewSubtitle.text = text
+        textViewFullscreenSubtitle.text = text
     }
 
     // --- Subtitle Display Update Logic ---
     private val updateRunnable = object : Runnable {
         override fun run() {
             if (!isPlaying) return
-            val elapsedMillis = (System.nanoTime() - startTimeNanos) / 1_000_000
+            val elapsedMillis = currentMediaMs()
             textViewCurrentTime.text = formatTime(elapsedMillis)
 
             // Update Slider only if user isn't dragging it
@@ -312,18 +395,18 @@ class MainActivity : AppCompatActivity() {
             val activeCue = findCueForTime(elapsedMillis)
             val newText = activeCue?.text ?: ""
             var textChanged = false
-            if (textViewSubtitle.text != newText) { textViewSubtitle.text = newText; textChanged = true }
+            if (textViewSubtitle.text != newText) { setCaptionText(newText); textChanged = true }
             if (textChanged || (activeCue == null && newText == "")) { sendSubtitleUpdate(newText) }
 
             if (subtitleCues.isNotEmpty()) {
-                val lastCueEndTime = subtitleCues.last().endTimeMs
+                val lastCueEndTime = subtitleCues.last().endTimeMs + postRollMs
                 if (elapsedMillis >= lastCueEndTime) {
                     // Call pausePlayback first to handle flags/state/button icon
                     pausePlayback()
                     // Set final UI state after pausing
                     textViewCurrentTime.text = formatTime(lastCueEndTime)
                     if (!sliderPlayback.isPressed) { sliderPlayback.value = sliderPlayback.valueTo }
-                    textViewSubtitle.text = "[Playback Finished]"
+                    setCaptionText("[Playback Finished]")
                     sendSubtitleUpdate("[Playback Finished]")
                     return // Stop runnable
                 }
@@ -332,10 +415,170 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // --- Find Cue Logic ---
-    private fun findCueForTime(elapsedMillis: Long): SubtitleCue? { return subtitleCues.find { c -> elapsedMillis >= c.startTimeMs && elapsedMillis < c.endTimeMs } }
+    // --- Find Cue Logic (with pre-roll / post-roll padding) ---
+    private fun findCueForTime(elapsedMillis: Long): SubtitleCue? {
+        val pre = preRollMs
+        val post = postRollMs
+        return subtitleCues.find { c -> elapsedMillis >= (c.startTimeMs - pre) && elapsedMillis < (c.endTimeMs + post) }
+    }
 
     // --- Format Time Logic ---
     private fun formatTime(millis: Long): String { if (millis < 0) return "00:00.000"; val sT = millis / 1000; val m = sT / 60; val s = sT % 60; val ms = millis % 1000; return String.format("%02d:%02d.%03d", m, s, ms) }
+
+    // --- Caption Styling ---
+    private fun applyCaptionStyle() {
+        val size = captionTextSizeSp
+        val textColor = captionTextColor
+        val boxColor = captionBoxColor
+        textViewSubtitle.setTextSize(TypedValue.COMPLEX_UNIT_SP, size)
+        textViewSubtitle.setTextColor(textColor)
+        textViewSubtitle.setBackgroundColor(boxColor)
+        // Fullscreen caption uses the same color, scaled up for presentation.
+        textViewFullscreenSubtitle.setTextSize(TypedValue.COMPLEX_UNIT_SP, size * 1.6f)
+        textViewFullscreenSubtitle.setTextColor(textColor)
+    }
+
+    // --- Fullscreen Mode ---
+    private fun enterFullscreen() {
+        isFullscreen = true
+        fullscreenContainer.setBackgroundColor(fullscreenBgColor)
+        applyCaptionStyle()
+        fullscreenControls.visibility = View.GONE
+        fullscreenContainer.visibility = View.VISIBLE
+        val controller = WindowCompat.getInsetsController(window, window.decorView)
+        controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        controller.hide(WindowInsetsCompat.Type.systemBars())
+    }
+
+    private fun exitFullscreen() {
+        isFullscreen = false
+        fullscreenContainer.visibility = View.GONE
+        WindowCompat.getInsetsController(window, window.decorView).show(WindowInsetsCompat.Type.systemBars())
+    }
+
+    private fun toggleFullscreenControls() {
+        fullscreenControls.visibility = if (fullscreenControls.visibility == View.VISIBLE) View.GONE else View.VISIBLE
+    }
+
+    // --- Settings Bottom Sheet ---
+    private fun showSettingsSheet() {
+        val dialog = BottomSheetDialog(this)
+        val view = LayoutInflater.from(this).inflate(R.layout.bottom_sheet_settings, null)
+        dialog.setContentView(view)
+
+        val sliderTextSize = view.findViewById<Slider>(R.id.sliderTextSize)
+        val labelTextSize = view.findViewById<TextView>(R.id.labelTextSize)
+        val rowTextColor = view.findViewById<LinearLayout>(R.id.rowTextColor)
+        val rowBoxColor = view.findViewById<LinearLayout>(R.id.rowBoxColor)
+        val sliderSpeed = view.findViewById<Slider>(R.id.sliderSpeed)
+        val labelSpeed = view.findViewById<TextView>(R.id.labelSpeed)
+        val switchKeep = view.findViewById<SwitchMaterial>(R.id.switchKeepScreenOn)
+        val sliderPreRoll = view.findViewById<Slider>(R.id.sliderPreRoll)
+        val labelPreRoll = view.findViewById<TextView>(R.id.labelPreRoll)
+        val sliderPostRoll = view.findViewById<Slider>(R.id.sliderPostRoll)
+        val labelPostRoll = view.findViewById<TextView>(R.id.labelPostRoll)
+        val rowFsBg = view.findViewById<LinearLayout>(R.id.rowFullscreenBg)
+        val buttonDone = view.findViewById<MaterialButton>(R.id.buttonSettingsDone)
+
+        // Text size
+        sliderTextSize.value = captionTextSizeSp.coerceIn(AppSettings.MIN_TEXT_SIZE, AppSettings.MAX_TEXT_SIZE)
+        labelTextSize.text = "${getString(R.string.setting_text_size)} (${sliderTextSize.value.toInt()}sp)"
+        sliderTextSize.addOnChangeListener { _, value, _ ->
+            captionTextSizeSp = value
+            labelTextSize.text = "${getString(R.string.setting_text_size)} (${value.toInt()}sp)"
+            applyCaptionStyle(); sendStyleUpdate()
+        }
+
+        // Playback speed (capture position under old speed before applying)
+        sliderSpeed.value = playbackSpeed.coerceIn(AppSettings.MIN_SPEED, AppSettings.MAX_SPEED)
+        labelSpeed.text = "${getString(R.string.setting_playback_speed)} (${sliderSpeed.value}x)"
+        sliderSpeed.addOnChangeListener { _, value, _ ->
+            if (isPlaying) { pausedElapsedTimeMillis = currentMediaMs() }
+            playbackSpeed = value
+            if (isPlaying) { rebaseClock() }
+            labelSpeed.text = "${getString(R.string.setting_playback_speed)} (${value}x)"
+        }
+
+        // Keep screen awake
+        switchKeep.isChecked = keepScreenOn
+        switchKeep.setOnCheckedChangeListener { _, checked ->
+            keepScreenOn = checked
+            applyKeepScreenFlag()
+        }
+
+        // Pre-roll
+        sliderPreRoll.value = preRollMs.toFloat().coerceIn(0f, AppSettings.MAX_ROLL_MS.toFloat())
+        labelPreRoll.text = "${getString(R.string.setting_pre_roll)} (${"%.1f".format(sliderPreRoll.value / 1000f)}s)"
+        sliderPreRoll.addOnChangeListener { _, value, _ ->
+            preRollMs = value.toLong()
+            labelPreRoll.text = "${getString(R.string.setting_pre_roll)} (${"%.1f".format(value / 1000f)}s)"
+        }
+
+        // Post-roll
+        sliderPostRoll.value = postRollMs.toFloat().coerceIn(0f, AppSettings.MAX_ROLL_MS.toFloat())
+        labelPostRoll.text = "${getString(R.string.setting_post_roll)} (${"%.1f".format(sliderPostRoll.value / 1000f)}s)"
+        sliderPostRoll.addOnChangeListener { _, value, _ ->
+            postRollMs = value.toLong()
+            labelPostRoll.text = "${getString(R.string.setting_post_roll)} (${"%.1f".format(value / 1000f)}s)"
+        }
+
+        // Color swatch rows
+        buildSwatchRow(rowTextColor, AppSettings.TEXT_COLOR_SWATCHES, captionTextColor) {
+            captionTextColor = it; applyCaptionStyle(); sendStyleUpdate()
+        }
+        buildSwatchRow(rowBoxColor, AppSettings.BOX_COLOR_SWATCHES, captionBoxColor) {
+            captionBoxColor = it; applyCaptionStyle(); sendStyleUpdate()
+        }
+        buildSwatchRow(rowFsBg, AppSettings.BG_COLOR_SWATCHES, fullscreenBgColor) {
+            fullscreenBgColor = it
+            if (isFullscreen) fullscreenContainer.setBackgroundColor(it)
+        }
+
+        buttonDone.setOnClickListener { dialog.dismiss() }
+
+        // Open fully expanded and scrolled to the top (otherwise a tall sheet opens
+        // in the collapsed peek state, showing the bottom of the content).
+        dialog.setOnShowListener {
+            val sheet = dialog.findViewById<View>(com.google.android.material.R.id.design_bottom_sheet)
+            sheet?.let {
+                val behavior = BottomSheetBehavior.from(it)
+                behavior.skipCollapsed = true
+                behavior.state = BottomSheetBehavior.STATE_EXPANDED
+            }
+            view.scrollTo(0, 0)
+        }
+        dialog.show()
+    }
+
+    /** Populate a row with tappable color swatches; the selected one gets a highlight ring. */
+    private fun buildSwatchRow(row: LinearLayout, colors: IntArray, current: Int, onPick: (Int) -> Unit) {
+        row.removeAllViews()
+        val density = resources.displayMetrics.density
+        val size = (40 * density).toInt()
+        val margin = (6 * density).toInt()
+        colors.forEach { color ->
+            val v = View(this)
+            val lp = LinearLayout.LayoutParams(size, size)
+            lp.marginEnd = margin
+            v.layoutParams = lp
+            v.background = makeSwatchDrawable(color, color == current)
+            v.setOnClickListener {
+                onPick(color)
+                buildSwatchRow(row, colors, color, onPick) // refresh selection ring
+            }
+            row.addView(v)
+        }
+    }
+
+    private fun makeSwatchDrawable(color: Int, selected: Boolean): GradientDrawable {
+        val density = resources.displayMetrics.density
+        val d = GradientDrawable()
+        d.shape = GradientDrawable.RECTANGLE
+        d.cornerRadius = 8 * density
+        d.setColor(color)
+        val strokeW = ((if (selected) 3 else 1) * density).toInt()
+        d.setStroke(strokeW, if (selected) Color.WHITE else Color.GRAY)
+        return d
+    }
 
 } // End of MainActivity class

@@ -1,3 +1,26 @@
 <resources>
     <string name="app_name">PopSubs</string>
+
+    <!-- Main screen -->
+    <string name="select_file">Select VTT / SRT File</string>
+    <string name="no_file_selected">No file selected</string>
+    <string name="settings">Settings</string>
+    <string name="fullscreen">Fullscreen</string>
+    <string name="exit_fullscreen">Exit fullscreen</string>
+    <string name="play">Play</string>
+    <string name="pause">Pause</string>
+    <string name="reset">Reset</string>
+    <string name="toggle_overlay">Toggle Overlay</string>
+
+    <!-- Settings sheet -->
+    <string name="settings_title">Caption &amp; Playback Settings</string>
+    <string name="setting_text_size">Text size</string>
+    <string name="setting_text_color">Text color</string>
+    <string name="setting_box_color">Caption box color</string>
+    <string name="setting_playback_speed">Playback speed</string>
+    <string name="setting_keep_screen_on">Keep screen awake during playback</string>
+    <string name="setting_pre_roll">Show captions earlier (pre-roll)</string>
+    <string name="setting_post_roll">Keep captions longer (post-roll)</string>
+    <string name="setting_fullscreen_bg">Fullscreen background</string>
+    <string name="done">Done</string>
 </resources>

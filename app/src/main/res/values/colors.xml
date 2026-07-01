@@ -3,6 +3,13 @@
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
 
-    <color name="pops_blue_primary">#2196F3</color> <color name="pops_onPrimary">#FFFFFF</color>    <color name="pops_blue_dark">#1976D2</color>   <color name="pops_grey_secondary">#607D8B</color> <color name="pops_onSecondary">#FFFFFF</color>
+    <color name="pops_blue_primary">#2196F3</color>
+    <color name="pops_onPrimary">#FFFFFF</color>
+    <color name="pops_blue_dark">#1976D2</color>
+    <color name="pops_grey_secondary">#607D8B</color>
+    <color name="pops_onSecondary">#FFFFFF</color>
+
+    <color name="fullscreen_controls_bg">#B3000000</color>
+    <color name="swatch_border">#FFFFFFFF</color>
 
 </resources>
