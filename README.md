@@ -50,9 +50,10 @@ There are two ways to get the app:
     * Build the project (`Build` > `Make Project`).
     * Run on an Android device or emulator (API 21+).
 
-2.  **Download Pre-built APK:**
-    * Alternatively, check the **[Releases section](releases)** of this repository for a pre-built `app-release.apk` file that you can download and install directly onto your Android device.
-    * *(Note: You may need to enable "Install from unknown sources" in your phone's security settings).*
+2.  **Download Pre-built APK (easiest):**
+    * Go to the **[Releases page](../../releases/latest)** and download `app-release.apk`.
+    * On your Android device, open the downloaded file to install it.
+    * If prompted, enable **"Install from unknown sources"** (or *"Install unknown apps"*) for your browser/file manager in Settings → Security.
 
 ## Usage
 
