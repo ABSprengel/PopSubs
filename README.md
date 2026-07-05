@@ -21,6 +21,10 @@ On top of the original, this fork adds:
 * **Timing padding:** show captions earlier (pre-roll) and keep them on screen longer (post-roll).
 * **Keep-screen-awake** is now an on/off setting.
 * **Fullscreen presentation mode** (works in landscape) that shows only the caption over a solid, user-chosen background color.
+* **Open from other apps:** tap a `.vtt` or `.srt` file in any file manager to open it directly in PopSubs.
+* **Skip prev/next cue** buttons to jump between subtitle blocks (also available in fullscreen).
+* **Seek buttons** (±5s, ±0.7s, ±0.1s) for quick fine-grained position adjustment.
+* **Configurable time format:** choose between `MM:SS.mmm`, `MM:SS`, `H:MM:SS.mmm`, or `H:MM:SS` in Settings.
 
 ## Motivation
 
@@ -28,16 +32,16 @@ This project was inspired by the lack of a simple, dedicated **standalone subtit
 
 ## Features
 
-* **Load Local Subtitle Files:** Select `.vtt` and `.srt` files using the Android system file picker. Includes robust filename retrieval.
-* **VTT/SRT Parsing:** Parses both WebVTT (`.vtt`) and SubRip (`.srt`) file formats to extract timings and text content. Handles basic format variations.
-* **Simulated Playback:** Controls (`Play/Pause`, `Reset`) allow simulating subtitle progression without needing video, at an adjustable speed.
-* **Seeking:** A `Material Slider` allows seeking to specific times within the subtitle file.
-* **Accurate Timing:** Displays elapsed playback time in `MM:SS.ms` format.
-* **Configurable Captions:** Text size, text color, and caption box color, plus pre-roll/post-roll timing padding.
-* **Keep Screen Awake:** Optional setting that prevents the screen from sleeping during active playback.
-* **Fullscreen Mode:** A distraction-free fullscreen/landscape view showing captions over a solid background color.
-* **Floating Overlay Window:** Displays the current subtitle text in a system overlay window that floats above other applications (similar in concept to the **Penguin Subtitle Player** overlay).
-* **Overlay Toggle:** Easily hide or show the floating overlay window using a button in the main app.
+* **Load subtitle files:** Select `.vtt` and `.srt` files via the in-app file picker, or open them directly from any file manager.
+* **VTT/SRT parsing:** Supports both WebVTT and SubRip formats with robust timing and text extraction.
+* **Playback controls:** Play/Pause, Reset, seek slider, skip prev/next cue buttons, and fine-grained seek buttons (±5s, ±0.7s, ±0.1s).
+* **Adjustable speed:** 0.5×–2.0× playback speed.
+* **Configurable time format:** `MM:SS.mmm`, `MM:SS`, `H:MM:SS.mmm`, or `H:MM:SS` — with a live example in Settings.
+* **Configurable captions:** Text size, text color, caption box color, and pre-roll/post-roll timing padding.
+* **Keep screen awake:** Optional setting that prevents the screen from sleeping during active playback.
+* **Fullscreen mode:** A distraction-free fullscreen/landscape view showing captions over a solid background color.
+* **Floating overlay window:** Displays the current subtitle text in a system overlay that floats above other applications (similar in concept to the **Penguin Subtitle Player** overlay).
+* **Overlay toggle:** Easily hide or show the floating overlay using a button in the main app.
 
 ## Setup & Build
 
@@ -57,12 +61,11 @@ There are two ways to get the app:
 
 ## Usage
 
-1.  Launch PopSubs.
-2.  Click "Select VTT / SRT File" and choose a valid `.vtt` or `.srt` file.
-3.  Use the Play/Pause/Reset buttons and the Slider to control playback.
-4.  Tap the **gear** icon to open Settings (caption size/colors, playback speed, screen-awake, timing padding, fullscreen background).
-5.  Tap the **fullscreen** icon for a full-screen/landscape caption view; tap the screen for controls, back to exit.
-6.  Click "Toggle Overlay" (grant permission if needed) to show/hide the floating subtitles over other apps.
+1.  Launch PopSubs, or tap a `.vtt` / `.srt` file in your file manager to open it directly.
+2.  Use **Play/Pause**, **Reset**, the seek **slider**, **⏮/⏭** cue buttons, and the **±** seek buttons to control playback.
+3.  Tap the **gear** icon to open Settings (caption size/colors, playback speed, time format, screen-awake, timing padding, fullscreen background).
+4.  Tap the **fullscreen** icon for a distraction-free caption view; tap the screen for controls, press Back to exit.
+5.  Tap **Toggle Overlay** (grant permission if needed) to show/hide the floating subtitles over other apps.
 
 ## Known Issues / Limitations
 
