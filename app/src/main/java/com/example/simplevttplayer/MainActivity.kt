@@ -15,6 +15,7 @@ import android.util.Log
 import android.util.TypedValue
 import android.view.LayoutInflater
 import android.widget.LinearLayout
+import android.widget.RadioGroup
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
@@ -47,6 +48,7 @@ import com.example.simplevttplayer.AppSettings.keepScreenOn
 import com.example.simplevttplayer.AppSettings.preRollMs
 import com.example.simplevttplayer.AppSettings.postRollMs
 import com.example.simplevttplayer.AppSettings.fullscreenBgColor
+import com.example.simplevttplayer.AppSettings.timeFormatIndex
 
 class MainActivity : AppCompatActivity() {
 
@@ -71,11 +73,18 @@ class MainActivity : AppCompatActivity() {
     private lateinit var buttonLaunchOverlay: MaterialButton
     private lateinit var sliderPlayback: Slider
 
+    // Skip controls + seek buttons
+    private lateinit var buttonPrevCue: MaterialButton
+    private lateinit var buttonNextCue: MaterialButton
+    private val seekButtons = mutableListOf<MaterialButton>()
+
     // Fullscreen UI
     private lateinit var fullscreenContainer: View
     private lateinit var textViewFullscreenSubtitle: TextView
     private lateinit var fullscreenControls: View
     private lateinit var buttonFsPlayPause: MaterialButton
+    private lateinit var buttonFsPrev: MaterialButton
+    private lateinit var buttonFsNext: MaterialButton
     private lateinit var buttonFsExit: MaterialButton
 
     // --- Subtitle Data ---
@@ -96,28 +105,7 @@ class MainActivity : AppCompatActivity() {
     // --- File Selection Launcher ---
     private val selectSubtitleFileLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
-            result.data?.data?.also { uri ->
-                selectedFileUri = uri
-                val fileName = getFileName(uri)
-                resetPlayback() // Reset first
-
-                if (fileName != null) {
-                    textViewFilePath.text = "File: $fileName"
-                    when {
-                        fileName.lowercase().endsWith(".vtt") -> loadAndParseSubtitleFile(uri, "vtt")
-                        fileName.lowercase().endsWith(".srt") -> loadAndParseSubtitleFile(uri, "srt")
-                        else -> {
-                            Toast.makeText(this, "Not VTT/SRT ($fileName)", Toast.LENGTH_LONG).show()
-                            resetPlaybackStateOnError()
-                            textViewFilePath.text = "File: $fileName (Not VTT/SRT?)"
-                        }
-                    }
-                } else {
-                    Toast.makeText(this, "No filename.", Toast.LENGTH_SHORT).show()
-                    resetPlaybackStateOnError()
-                    textViewFilePath.text = "File: (Unknown)"
-                }
-            }
+            result.data?.data?.also { uri -> loadSubtitleFromUri(uri) }
         } else {
             Toast.makeText(this, "File selection cancelled", Toast.LENGTH_SHORT).show()
         }
@@ -127,6 +115,7 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main) // Uses layout with Material components
+        setSupportActionBar(findViewById(R.id.toolbar))
 
         overlayPermissionLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
             if (checkOverlayPermission()) { Log.d(TAG, "Overlay perm granted post-settings."); startOverlayService()
@@ -145,10 +134,15 @@ class MainActivity : AppCompatActivity() {
         buttonLaunchOverlay = findViewById(R.id.buttonLaunchOverlay)
         sliderPlayback = findViewById(R.id.sliderPlayback) // Use Slider ID
 
+        buttonPrevCue = findViewById(R.id.buttonPrevCue)
+        buttonNextCue = findViewById(R.id.buttonNextCue)
+
         fullscreenContainer = findViewById(R.id.fullscreenContainer)
         textViewFullscreenSubtitle = findViewById(R.id.textViewFullscreenSubtitle)
         fullscreenControls = findViewById(R.id.fullscreenControls)
         buttonFsPlayPause = findViewById(R.id.buttonFsPlayPause)
+        buttonFsPrev = findViewById(R.id.buttonFsPrev)
+        buttonFsNext = findViewById(R.id.buttonFsNext)
         buttonFsExit = findViewById(R.id.buttonFsExit)
 
         // Set Listeners
@@ -157,6 +151,22 @@ class MainActivity : AppCompatActivity() {
         buttonFullscreen.setOnClickListener { enterFullscreen() }
         buttonPlayPause.setOnClickListener { togglePlayPause() }
         buttonReset.setOnClickListener { resetPlayback() }
+        buttonPrevCue.setOnClickListener { skipToCue(-1) }
+        buttonNextCue.setOnClickListener { skipToCue(+1) }
+        buttonFsPrev.setOnClickListener { skipToCue(-1) }
+        buttonFsNext.setOnClickListener { skipToCue(+1) }
+        listOf(
+            R.id.buttonSeekM5s  to -5000L,
+            R.id.buttonSeekM07s to  -700L,
+            R.id.buttonSeekM01s to  -100L,
+            R.id.buttonSeekP01s to   100L,
+            R.id.buttonSeekP07s to   700L,
+            R.id.buttonSeekP5s  to  5000L
+        ).forEach { (id, delta) ->
+            val btn = findViewById<MaterialButton>(id)
+            btn.setOnClickListener { seekBy(delta) }
+            seekButtons.add(btn)
+        }
         buttonLaunchOverlay.setOnClickListener {
             isOverlayUIShown = !isOverlayUIShown
             if (isOverlayUIShown) { Log.d(TAG,"Overlay ON"); Toast.makeText(this,"Overlay Shown",Toast.LENGTH_SHORT).show(); handleLaunchOverlayClick(); sendStyleUpdate(); sendSubtitleUpdate(textViewSubtitle.text.toString())
@@ -186,6 +196,11 @@ class MainActivity : AppCompatActivity() {
         sliderPlayback.isEnabled = false
         setPlayButtonState(false) // Ensure correct initial icon
         applyCaptionStyle()       // Apply saved caption look
+
+        // Handle file opened from another app
+        if (intent?.action == Intent.ACTION_VIEW) {
+            intent.data?.let { loadSubtitleFromUri(it) }
+        }
     }
 
     // *** ADDED Keep Screen On flag clearing ***
@@ -200,7 +215,8 @@ class MainActivity : AppCompatActivity() {
 
     // --- Slider Setup ---
     private fun setupSliderListener() {
-        sliderPlayback.addOnChangeListener { _, value, fromUser -> // Underscore for unused 'slider' param
+        sliderPlayback.setLabelFormatter { value -> formatTime(value.toLong()) }
+        sliderPlayback.addOnChangeListener { _, value, fromUser ->
             if (fromUser) { textViewCurrentTime.text = formatTime(value.toLong()) }
         }
         sliderPlayback.addOnSliderTouchListener(object : OnSliderTouchListener {
@@ -231,6 +247,28 @@ class MainActivity : AppCompatActivity() {
     @SuppressLint("Range") private fun getFileName(uri: Uri): String? { var f: String? = null; try { contentResolver.query(uri, null, null, null, null)?.use { c -> if (c.moveToFirst()) { val i = c.getColumnIndex(OpenableColumns.DISPLAY_NAME); if (i != -1) f = c.getString(i) } } } catch (e: Exception) { Log.e(TAG, "getFileName error: $uri", e) }; if (f == null) { f = uri.path; val cut = f?.lastIndexOf('/'); if (cut != -1 && cut != null) { f = f?.substring(cut + 1) } }; return f }
     private fun openFilePicker() { val i = Intent(Intent.ACTION_OPEN_DOCUMENT).apply { addCategory(Intent.CATEGORY_OPENABLE); type = "*/*" }; selectSubtitleFileLauncher.launch(i) }
 
+    private fun loadSubtitleFromUri(uri: Uri) {
+        selectedFileUri = uri
+        val fileName = getFileName(uri)
+        resetPlayback()
+        if (fileName != null) {
+            textViewFilePath.text = "File: $fileName"
+            when {
+                fileName.lowercase().endsWith(".vtt") -> loadAndParseSubtitleFile(uri, "vtt")
+                fileName.lowercase().endsWith(".srt") -> loadAndParseSubtitleFile(uri, "srt")
+                else -> {
+                    Toast.makeText(this, "Not VTT/SRT ($fileName)", Toast.LENGTH_LONG).show()
+                    resetPlaybackStateOnError()
+                    textViewFilePath.text = "File: $fileName (Not VTT/SRT?)"
+                }
+            }
+        } else {
+            Toast.makeText(this, "No filename.", Toast.LENGTH_SHORT).show()
+            resetPlaybackStateOnError()
+            textViewFilePath.text = "File: (Unknown)"
+        }
+    }
+
     private fun loadAndParseSubtitleFile(uri: Uri, format: String) {
         Log.d(TAG, "Attempting to load $format file: $uri")
         try {
@@ -239,6 +277,8 @@ class MainActivity : AppCompatActivity() {
                 if (subtitleCues.isNotEmpty()) {
                     Toast.makeText(this, "${format.uppercase()} loaded: ${subtitleCues.size} cues", Toast.LENGTH_SHORT).show()
                     buttonPlayPause.isEnabled = true; buttonReset.isEnabled = true; buttonLaunchOverlay.isEnabled = true
+                    buttonPrevCue.isEnabled = true; buttonNextCue.isEnabled = true
+                    seekButtons.forEach { it.isEnabled = true }
                     val duration = subtitleCues.lastOrNull()?.endTimeMs ?: 0L
                     sliderPlayback.valueFrom = 0.0f; sliderPlayback.valueTo = duration.toFloat(); sliderPlayback.value = 0.0f; sliderPlayback.isEnabled = true
                     setCaptionText("[Ready to play]"); textViewCurrentTime.text = formatTime(0)
@@ -335,6 +375,9 @@ class MainActivity : AppCompatActivity() {
         buttonPlayPause.isEnabled = cuesLoaded
         buttonReset.isEnabled = cuesLoaded
         buttonLaunchOverlay.isEnabled = cuesLoaded
+        buttonPrevCue.isEnabled = cuesLoaded
+        buttonNextCue.isEnabled = cuesLoaded
+        seekButtons.forEach { it.isEnabled = cuesLoaded }
         sliderPlayback.value = 0.0f // Reset Slider value
         sliderPlayback.isEnabled = cuesLoaded
         sendSubtitleUpdate("") // Clear the overlay text
@@ -346,6 +389,8 @@ class MainActivity : AppCompatActivity() {
     private fun resetPlaybackStateOnError() {
         subtitleCues = emptyList(); selectedFileUri = null
         buttonPlayPause.isEnabled = false; buttonReset.isEnabled = false; buttonLaunchOverlay.isEnabled = false
+        buttonPrevCue.isEnabled = false; buttonNextCue.isEnabled = false
+        seekButtons.forEach { it.isEnabled = false }
         sliderPlayback.value = 0.0f // Reset Slider value
         sliderPlayback.isEnabled = false
         isOverlayUIShown = true; setCaptionText("[Error loading file]"); textViewCurrentTime.text = formatTime(0)
@@ -354,6 +399,48 @@ class MainActivity : AppCompatActivity() {
 
         window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         Log.d(TAG, "Error state reset, screen allowed to turn off.")
+    }
+
+    private fun skipToCue(delta: Int) {
+        if (subtitleCues.isEmpty()) return
+        val now = if (isPlaying) currentMediaMs() else pausedElapsedTimeMillis
+        val target = if (delta > 0) {
+            // Next: first cue that starts strictly after current position
+            subtitleCues.indexOfFirst { it.startTimeMs > now }.takeIf { it >= 0 } ?: return
+        } else {
+            // Prev: step back by index
+            when {
+                currentCueIndex < 0 -> 0
+                else -> (currentCueIndex - 1).coerceAtLeast(0)
+            }
+        }
+        currentCueIndex = target
+        pausedElapsedTimeMillis = subtitleCues[target].startTimeMs
+        textViewCurrentTime.text = formatTime(pausedElapsedTimeMillis)
+        val cue = subtitleCues[target]
+        setCaptionText(cue.text)
+        sendSubtitleUpdate(cue.text)
+        rebaseClock()
+        val sliderVal = pausedElapsedTimeMillis.toFloat().coerceIn(sliderPlayback.valueFrom, sliderPlayback.valueTo)
+        if (!sliderPlayback.isPressed) sliderPlayback.value = sliderVal
+        if (!isPlaying) setPlayButtonState(false)
+    }
+
+    private fun seekBy(deltaMs: Long) {
+        if (subtitleCues.isEmpty()) return
+        val now = if (isPlaying) currentMediaMs() else pausedElapsedTimeMillis
+        val target = (now + deltaMs).coerceIn(0L, sliderPlayback.valueTo.toLong())
+        pausedElapsedTimeMillis = target
+        textViewCurrentTime.text = formatTime(target)
+        val cue = findCueForTime(target)
+        val cueText = cue?.text ?: ""
+        setCaptionText(cueText)
+        sendSubtitleUpdate(cueText)
+        rebaseClock()
+        if (!sliderPlayback.isPressed) {
+            sliderPlayback.value = target.toFloat().coerceIn(sliderPlayback.valueFrom, sliderPlayback.valueTo)
+        }
+        if (!isPlaying) setPlayButtonState(false)
     }
 
     // Helper function to change Play/Pause button icon and text (both windowed + fullscreen)
@@ -393,6 +480,7 @@ class MainActivity : AppCompatActivity() {
             }
 
             val activeCue = findCueForTime(elapsedMillis)
+            if (activeCue != null) currentCueIndex = subtitleCues.indexOf(activeCue)
             val newText = activeCue?.text ?: ""
             var textChanged = false
             if (textViewSubtitle.text != newText) { setCaptionText(newText); textChanged = true }
@@ -419,11 +507,26 @@ class MainActivity : AppCompatActivity() {
     private fun findCueForTime(elapsedMillis: Long): SubtitleCue? {
         val pre = preRollMs
         val post = postRollMs
-        return subtitleCues.find { c -> elapsedMillis >= (c.startTimeMs - pre) && elapsedMillis < (c.endTimeMs + post) }
+        return subtitleCues.find { c ->
+            elapsedMillis >= (c.startTimeMs - pre) && elapsedMillis < (c.endTimeMs + post)
+        }
     }
 
     // --- Format Time Logic ---
-    private fun formatTime(millis: Long): String { if (millis < 0) return "00:00.000"; val sT = millis / 1000; val m = sT / 60; val s = sT % 60; val ms = millis % 1000; return String.format("%02d:%02d.%03d", m, s, ms) }
+    private fun formatTime(millis: Long): String {
+        val t = millis.coerceAtLeast(0)
+        val ms = t % 1000
+        val totalSec = t / 1000
+        val s = totalSec % 60
+        val m = (totalSec / 60) % 60
+        val h = totalSec / 3600
+        return when (timeFormatIndex) {
+            AppSettings.TIME_FORMAT_MMSS    -> String.format("%02d:%02d", m + h * 60, s)
+            AppSettings.TIME_FORMAT_HMMSSMS -> String.format("%d:%02d:%02d.%03d", h, m, s, ms)
+            AppSettings.TIME_FORMAT_HMMSS   -> String.format("%d:%02d:%02d", h, m, s)
+            else                            -> String.format("%02d:%02d.%03d", m + h * 60, s, ms)
+        }
+    }
 
     // --- Caption Styling ---
     private fun applyCaptionStyle() {
@@ -477,6 +580,8 @@ class MainActivity : AppCompatActivity() {
         val labelPreRoll = view.findViewById<TextView>(R.id.labelPreRoll)
         val sliderPostRoll = view.findViewById<Slider>(R.id.sliderPostRoll)
         val labelPostRoll = view.findViewById<TextView>(R.id.labelPostRoll)
+        val radioGroupTimeFormat = view.findViewById<RadioGroup>(R.id.radioGroupTimeFormat)
+        val textTimeFormatExample = view.findViewById<TextView>(R.id.textTimeFormatExample)
         val rowFsBg = view.findViewById<LinearLayout>(R.id.rowFullscreenBg)
         val buttonDone = view.findViewById<MaterialButton>(R.id.buttonSettingsDone)
 
@@ -520,6 +625,25 @@ class MainActivity : AppCompatActivity() {
         sliderPostRoll.addOnChangeListener { _, value, _ ->
             postRollMs = value.toLong()
             labelPostRoll.text = "${getString(R.string.setting_post_roll)} (${"%.1f".format(value / 1000f)}s)"
+        }
+
+        // Time format
+        val radioIds = listOf(
+            R.id.radioTimeMMSSms, R.id.radioTimeMMSS, R.id.radioTimeHMMSSms, R.id.radioTimeHMMSS
+        )
+        radioGroupTimeFormat.check(radioIds[timeFormatIndex.coerceIn(0, 3)])
+        val sampleMs = 225678L // 3:45.678 / 0:03:45.678
+        fun refreshExample() {
+            val pos = if (subtitleCues.isNotEmpty()) {
+                if (isPlaying) currentMediaMs() else pausedElapsedTimeMillis
+            } else sampleMs
+            textTimeFormatExample.text = "Current time: ${formatTime(pos)}"
+        }
+        refreshExample()
+        radioGroupTimeFormat.setOnCheckedChangeListener { _, checkedId ->
+            timeFormatIndex = radioIds.indexOf(checkedId).coerceAtLeast(0)
+            refreshExample()
+            textViewCurrentTime.text = formatTime(if (isPlaying) currentMediaMs() else pausedElapsedTimeMillis)
         }
 
         // Color swatch rows

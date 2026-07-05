@@ -23,4 +23,7 @@
     <string name="setting_post_roll">Keep captions longer (post-roll)</string>
     <string name="setting_fullscreen_bg">Fullscreen background</string>
     <string name="done">Done</string>
+    <string name="prev_cue">Previous cue</string>
+    <string name="next_cue">Next cue</string>
+    <string name="setting_time_format">Time display format</string>
 </resources>

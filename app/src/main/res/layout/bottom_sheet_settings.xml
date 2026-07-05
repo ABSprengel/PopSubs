@@ -117,6 +117,51 @@
             android:valueFrom="0.0"
             android:valueTo="3000.0" />
 
+        <!-- Time display format -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:text="@string/setting_time_format" />
+
+        <RadioGroup
+            android:id="@+id/radioGroupTimeFormat"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp">
+
+            <RadioButton
+                android:id="@+id/radioTimeMMSSms"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="MM:SS.mmm  (e.g. 03:45.678)" />
+
+            <RadioButton
+                android:id="@+id/radioTimeMMSS"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="MM:SS  (e.g. 03:45)" />
+
+            <RadioButton
+                android:id="@+id/radioTimeHMMSSms"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="H:MM:SS.mmm  (e.g. 0:03:45.678)" />
+
+            <RadioButton
+                android:id="@+id/radioTimeHMMSS"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="H:MM:SS  (e.g. 0:03:45)" />
+        </RadioGroup>
+
+        <TextView
+            android:id="@+id/textTimeFormatExample"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:layout_marginBottom="4dp" />
+
         <!-- Fullscreen background -->
         <TextView
             android:layout_width="wrap_content"

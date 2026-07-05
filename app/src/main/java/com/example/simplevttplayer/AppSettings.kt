@@ -20,6 +20,7 @@ object AppSettings {
     private const val KEY_PRE_ROLL = "pre_roll_ms"
     private const val KEY_POST_ROLL = "post_roll_ms"
     private const val KEY_FULLSCREEN_BG = "fullscreen_bg_color"
+    private const val KEY_TIME_FORMAT = "time_format"
 
     // Defaults chosen to match the app's original hardcoded look.
     const val DEFAULT_TEXT_SIZE = 18f
@@ -37,6 +38,12 @@ object AppSettings {
     const val MIN_SPEED = 0.5f
     const val MAX_SPEED = 2.0f
     const val MAX_ROLL_MS = 3000L
+
+    // Time format indices (stored in prefs as Int)
+    const val TIME_FORMAT_MMSSMS = 0  // 01:23.456
+    const val TIME_FORMAT_MMSS   = 1  // 01:23
+    const val TIME_FORMAT_HMMSSMS = 2 // 1:01:23.456
+    const val TIME_FORMAT_HMMSS  = 3  // 1:01:23
 
     private fun prefs(context: Context): SharedPreferences =
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -72,6 +79,10 @@ object AppSettings {
     var Context.fullscreenBgColor: Int
         get() = prefs(this).getInt(KEY_FULLSCREEN_BG, DEFAULT_FULLSCREEN_BG)
         set(value) = prefs(this).edit().putInt(KEY_FULLSCREEN_BG, value).apply()
+
+    var Context.timeFormatIndex: Int
+        get() = prefs(this).getInt(KEY_TIME_FORMAT, TIME_FORMAT_MMSSMS)
+        set(value) = prefs(this).edit().putInt(KEY_TIME_FORMAT, value).apply()
 
     /** Preset swatches offered in the settings sheet for text / box / background colors. */
     val TEXT_COLOR_SWATCHES = intArrayOf(
